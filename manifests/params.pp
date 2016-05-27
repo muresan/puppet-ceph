@@ -37,13 +37,20 @@ class ceph::params (
   $rgw_socket_path = '/tmp/radosgw.sock',
 ) {
 
+  include ::stdlib
+
   case $::osfamily {
     'Debian': {
       $pkg_radosgw      = 'radosgw'
       $user_radosgw     = 'www-data'
       $pkg_fastcgi      = 'libapache2-mod-fastcgi'
       $pkg_nsstools     = 'libnss3-tools'
-      $service_provider = 'debian'
+      # Ubuntu 16.04 has systemd
+      if $::service_provider == 'systemd' {
+        $service_provider = 'systemd'
+      } else {
+        $service_provider = 'debian'
+      }
     }
 
     'RedHat': {
@@ -51,11 +58,22 @@ class ceph::params (
       $user_radosgw     = 'apache'
       $pkg_fastcgi      = 'mod_fastcgi'
       $pkg_nsstools     = 'nss-tools'
-      $service_provider = 'redhat'
+      if $::ceph::repo::release == 'jewel' {
+        $service_provider = 'systemd'
+      } else {
+        $service_provider = 'redhat'
+      }
     }
 
     default: {
       fail("Unsupported osfamily: ${::osfamily} operatingsystem: ${::operatingsystem}, module ${module_name} only supports osfamily Debian or RedHat")
     }
   }
+
+  if $::ceph::repo::release == 'jewel' {
+    $ceph_user = 'ceph'
+  } else {
+    $ceph_user = 'root'
+  }
+
 }

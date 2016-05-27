@@ -64,8 +64,6 @@ define ceph::mon (
   $exec_timeout = $::ceph::params::exec_timeout,
   ) {
 
-    include ::stdlib
-
     # a puppet name translates into a ceph id, the meaning is different
     $id = $name
 
@@ -77,28 +75,34 @@ define ceph::mon (
     }
 
     # if Ubuntu does not use systemd
-    if $::service_provider == 'upstart' {
-      $init = 'upstart'
-      Service {
-        name     => "ceph-mon-${id}",
-        provider => $::ceph::params::service_provider,
-        start    => "start ceph-mon id=${id}",
-        stop     => "stop ceph-mon id=${id}",
-        status   => "status ceph-mon id=${id}",
+    case $::ceph::params::service_provider {
+      "upstart": {
+        $init = 'upstart'
+        $mon_service = "ceph-mon-${id}"
+        Service {
+          name     => "ceph-mon-${id}",
+          provider => $::ceph::params::service_provider,
+          start    => "start ceph-mon id=${id}",
+          stop     => "stop ceph-mon id=${id}",
+          status   => "status ceph-mon id=${id}",
+        }
       }
-    # Everything else that is supported by puppet-ceph should run systemd.
-    } else {
-      $init = 'sysvinit'
-      Service {
-        name     => "ceph-mon-${id}",
-        provider => $::ceph::params::service_provider,
-        start    => "service ceph start mon.${id}",
-        stop     => "service ceph stop mon.${id}",
-        status   => "service ceph status mon.${id}",
+      "redhat": {
+        $mon_service = "ceph-mon-${id}"
+        $init = 'sysvinit'
+        Service {
+          name     => "ceph-mon-${id}",
+          provider => $::ceph::params::service_provider,
+          start    => "service ceph start mon.${id}",
+          stop     => "service ceph stop mon.${id}",
+          status   => "service ceph status mon.${id}",
+        }
+      }
+      "systemd": {
+        $init = 'sysvinit'
+        $mon_service = "ceph-mon@${id}"
       }
     }
-
-    $mon_service = "ceph-mon-${id}"
 
     if $ensure == present {
 
@@ -183,6 +187,7 @@ test -d  \$mon_data
 ",
         logoutput => true,
         timeout   => $exec_timeout,
+        user      => $::ceph::params::ceph_user,
       }->
       service { $mon_service:
         ensure => running,
